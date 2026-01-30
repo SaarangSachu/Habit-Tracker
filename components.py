@@ -20,16 +20,15 @@ class HabitCard(ctk.CTkFrame):
         
         self.columnconfigure(0, weight=1)
         
+        # Icon Loading (Safe Mode)
         try:
-            self.edit_icon = ctk.CTkImage(light_image=Image.open("assets/edit.png"), 
-                                          dark_image=Image.open("assets/edit.png"), size=(18, 18))
-            self.del_icon = ctk.CTkImage(light_image=Image.open("assets/delete.png"), 
-                                         dark_image=Image.open("assets/delete.png"), size=(18, 18))
+            self.edit_icon = ctk.CTkImage(light_image=Image.open("assets/edit.png"), dark_image=Image.open("assets/edit.png"), size=(18, 18))
+            self.del_icon = ctk.CTkImage(light_image=Image.open("assets/delete.png"), dark_image=Image.open("assets/delete.png"), size=(18, 18))
             has_icons = True
         except:
             has_icons = False
 
-        # ROW 1: Info
+        # Info Row
         info_frame = ctk.CTkFrame(self, fg_color="transparent")
         info_frame.grid(row=0, column=0, padx=15, pady=(15, 5), sticky="ew")
         
@@ -40,14 +39,12 @@ class HabitCard(ctk.CTkFrame):
         if time:
             ctk.CTkLabel(info_frame, text=f"⏰ {time}", font=("Arial", 12), text_color="grey").pack(side="left")
 
-        # ROW 2: Weekly Progress
+        # Weekly Progress
         if target > 0:
             prog_frame = ctk.CTkFrame(self, fg_color="transparent", height=10)
             prog_frame.grid(row=1, column=0, padx=15, pady=(0, 15), sticky="ew")
-            
             status_col = "#2CC985" if progress >= target else "#aaaaaa"
-            ctk.CTkLabel(prog_frame, text=f"Weekly Goal: {progress}/{target}", font=("Arial", 10), text_color=status_col).pack(side="left")
-            
+            ctk.CTkLabel(prog_frame, text=f"Weekly: {progress}/{target}", font=("Arial", 10), text_color=status_col).pack(side="left")
             bar = ctk.CTkProgressBar(prog_frame, width=100, height=6, progress_color=status_col)
             bar.pack(side="right")
             percent = progress / target if target > 0 else 0
@@ -69,15 +66,11 @@ class HabitCard(ctk.CTkFrame):
 
         # Buttons
         if has_icons:
-            self.edit_btn = ctk.CTkButton(self, text="", image=self.edit_icon, width=30, height=30, 
-                                          fg_color="transparent", hover_color="#333333", command=self.on_edit)
-            self.del_btn = ctk.CTkButton(self, text="", image=self.del_icon, width=30, height=30, 
-                                         fg_color="transparent", hover_color="#c0392b", command=self.on_delete)
+            self.edit_btn = ctk.CTkButton(self, text="", image=self.edit_icon, width=30, height=30, fg_color="transparent", hover_color="#333", command=self.on_edit)
+            self.del_btn = ctk.CTkButton(self, text="", image=self.del_icon, width=30, height=30, fg_color="transparent", hover_color="#c0392b", command=self.on_delete)
         else:
-            self.edit_btn = ctk.CTkButton(self, text="✏️", width=30, height=30, 
-                                          fg_color="transparent", hover_color="#333333", command=self.on_edit)
-            self.del_btn = ctk.CTkButton(self, text="🗑️", width=30, height=30, 
-                                         fg_color="transparent", hover_color="#c0392b", command=self.on_delete)
+            self.edit_btn = ctk.CTkButton(self, text="✏️", width=30, height=30, fg_color="transparent", hover_color="#333", command=self.on_edit)
+            self.del_btn = ctk.CTkButton(self, text="🗑️", width=30, height=30, fg_color="transparent", hover_color="#c0392b", command=self.on_delete)
             
         self.edit_btn.grid(row=0, column=3, padx=(0, 5))
         self.del_btn.grid(row=0, column=4, padx=(0, 15))
@@ -94,32 +87,28 @@ class Sidebar(ctk.CTkFrame):
         
         ctk.CTkLabel(self, text="QUESTLOG", font=("Impact", 28), text_color="#2CC985").pack(pady=(40, 20))
 
-        # PLAYER STATS
-        stats_frame = ctk.CTkFrame(self, fg_color="#2b2b2b", corner_radius=10)
-        stats_frame.pack(fill="x", padx=15, pady=(0, 30))
-        
-        ctk.CTkLabel(stats_frame, text=f"LVL {level}", font=("Arial", 10, "bold"), text_color="#2CC985").pack(pady=(10,0))
+        # Stats
+        stats = ctk.CTkFrame(self, fg_color="#2b2b2b", corner_radius=10)
+        stats.pack(fill="x", padx=15, pady=(0, 30))
+        ctk.CTkLabel(stats, text=f"LVL {level}", font=("Arial", 10, "bold"), text_color="#2CC985").pack(pady=(10,0))
         titles = {1: "Novice", 2: "Apprentice", 3: "Hustler", 4: "Master", 5: "God Mode"}
-        title_text = titles.get(level, "Legend")
-        ctk.CTkLabel(stats_frame, text=title_text.upper(), font=("Segoe UI", 16, "bold"), text_color="white").pack(pady=(0, 5))
-        ctk.CTkLabel(stats_frame, text=f"{total_xp} / {next_level_xp} XP", font=("Arial", 10), text_color="grey").pack(anchor="w", padx=10)
-        
-        xp_bar = ctk.CTkProgressBar(stats_frame, height=8, corner_radius=5, progress_color="#e67e22")
+        ctk.CTkLabel(stats, text=titles.get(level, "Legend").upper(), font=("Segoe UI", 16, "bold"), text_color="white").pack(pady=(0, 5))
+        xp_bar = ctk.CTkProgressBar(stats, height=8, corner_radius=5, progress_color="#e67e22")
         xp_bar.pack(fill="x", padx=10, pady=(0, 15))
-        progress = total_xp / next_level_xp if next_level_xp > 0 else 1
-        xp_bar.set(progress)
+        xp_bar.set(total_xp / next_level_xp if next_level_xp > 0 else 1)
 
+        # Nav
         self.create_nav_btn("🏠  Dashboard", "dashboard")
         self.create_nav_btn("📊  Analytics", "analytics")
+        self.create_nav_btn("📈  Performance", "performance")
 
+        # Themes
         ctk.CTkLabel(self, text="UNLOCKABLES", font=("Arial", 10, "bold"), text_color="#555").pack(side="bottom", pady=(0, 10))
         if level >= 5:
-            self.theme_btn = ctk.CTkButton(self, text="🎨 Cyberpunk", fg_color="#8e44ad", hover_color="#9b59b6", 
-                                           height=30, command=lambda: self.theme_callback("cyberpunk"))
+            btn = ctk.CTkButton(self, text="🎨 Cyberpunk", fg_color="#8e44ad", command=lambda: self.theme_callback("cyberpunk"))
         else:
-            self.theme_btn = ctk.CTkButton(self, text="🔒 Lvl 5 to Unlock", fg_color="#333", state="disabled", 
-                                           text_color="#555", height=30)
-        self.theme_btn.pack(side="bottom", padx=20, pady=20)
+            btn = ctk.CTkButton(self, text="🔒 Lvl 5 to Unlock", fg_color="#333", state="disabled", text_color="#555")
+        btn.pack(side="bottom", padx=20, pady=20)
 
     def create_nav_btn(self, text, value):
-        ctk.CTkButton(self, text=text, fg_color="transparent", text_color="#cccccc", hover_color="#333333", anchor="w", height=40, font=("Segoe UI", 16), command=lambda: self.nav_callback(value)).pack(fill="x", padx=10, pady=5)
+        ctk.CTkButton(self, text=text, fg_color="transparent", text_color="#cccccc", hover_color="#333", anchor="w", height=40, font=("Segoe UI", 16), command=lambda: self.nav_callback(value)).pack(fill="x", padx=10, pady=5)
