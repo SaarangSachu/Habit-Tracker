@@ -79,13 +79,52 @@ class HabitCard(ctk.CTkFrame):
     def on_edit(self): self.edit_callback(self.h_id, self.name, self.time, self.category, self.target)
 
 class Sidebar(ctk.CTkFrame):
-    def __init__(self, parent, nav_callback):
+    def __init__(self, parent, nav_callback, total_xp, level, next_level_xp, theme_callback):
         super().__init__(parent, width=220, corner_radius=0, fg_color="#1a1a1a")
         self.nav_callback = nav_callback
-        ctk.CTkLabel(self, text="WINTER ARC", font=("Impact", 28), text_color="#2CC985").pack(pady=50)
+        self.theme_callback = theme_callback
+        
+        # 1. App Title
+        ctk.CTkLabel(self, text="WINTER ARC", font=("Impact", 28), text_color="#2CC985").pack(pady=(40, 20))
+
+        # 2. PLAYER STATS CARD (RPG Style)
+        stats_frame = ctk.CTkFrame(self, fg_color="#2b2b2b", corner_radius=10)
+        stats_frame.pack(fill="x", padx=15, pady=(0, 30))
+        
+        # Level Badge
+        ctk.CTkLabel(stats_frame, text=f"LVL {level}", font=("Arial", 10, "bold"), text_color="#2CC985").pack(pady=(10,0))
+        
+        # Title (Novice, etc.)
+        titles = {1: "Novice", 2: "Apprentice", 3: "Hustler", 4: "Master", 5: "God Mode"}
+        title_text = titles.get(level, "Legend")
+        ctk.CTkLabel(stats_frame, text=title_text.upper(), font=("Segoe UI", 16, "bold"), text_color="white").pack(pady=(0, 5))
+        
+        # XP Bar
+        ctk.CTkLabel(stats_frame, text=f"{total_xp} / {next_level_xp} XP", font=("Arial", 10), text_color="grey").pack(anchor="w", padx=10)
+        
+        xp_bar = ctk.CTkProgressBar(stats_frame, height=8, corner_radius=5, progress_color="#e67e22")
+        xp_bar.pack(fill="x", padx=10, pady=(0, 15))
+        
+        # Calculate progress (avoid division by zero)
+        progress = total_xp / next_level_xp if next_level_xp > 0 else 1
+        xp_bar.set(progress)
+
+        # 3. Navigation
         self.create_nav_btn("🏠  Dashboard", "dashboard")
         self.create_nav_btn("📊  Analytics", "analytics")
-        ctk.CTkLabel(self, text="v2.1 Weekly Goals", text_color="grey").pack(side="bottom", pady=20)
+
+        # 4. UNLOCKABLE THEMES
+        ctk.CTkLabel(self, text="UNLOCKABLES", font=("Arial", 10, "bold"), text_color="#555").pack(side="bottom", pady=(0, 10))
+        
+        # Theme Button (Locks logic)
+        if level >= 5:
+            self.theme_btn = ctk.CTkButton(self, text="🎨 Cyberpunk", fg_color="#8e44ad", hover_color="#9b59b6", 
+                                           height=30, command=lambda: self.theme_callback("cyberpunk"))
+        else:
+            self.theme_btn = ctk.CTkButton(self, text="🔒 Lvl 5 to Unlock", fg_color="#333", state="disabled", 
+                                           text_color="#555", height=30)
+        
+        self.theme_btn.pack(side="bottom", padx=20, pady=20)
 
     def create_nav_btn(self, text, value):
         ctk.CTkButton(self, text=text, fg_color="transparent", text_color="#cccccc", hover_color="#333333", anchor="w", height=40, font=("Segoe UI", 16), command=lambda: self.nav_callback(value)).pack(fill="x", padx=10, pady=5)

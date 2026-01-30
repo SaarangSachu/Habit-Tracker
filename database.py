@@ -101,3 +101,13 @@ class Database:
         data = {str(row[0]): row[1] for row in cursor.fetchall()}
         conn.close()
         return data
+    
+   
+
+    def get_total_completions(self):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM daily_logs")
+        count = cursor.fetchone()[0]
+        conn.close()
+        return count
