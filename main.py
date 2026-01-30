@@ -18,7 +18,7 @@ ctk.set_default_color_theme("green")
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("Winter Arc Tracker v3.0 (RPG Edition)")
+        self.title("QuestLog v1.0")
         self.geometry("1100x700")
         
         # Initialize Backend Systems
