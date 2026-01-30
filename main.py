@@ -15,19 +15,16 @@ ctk.set_default_color_theme("green")
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("Winter Arc Tracker v2")
-        self.geometry("1000x700")
+        self.title("Winter Arc Tracker v2.1")
+        self.geometry("1050x700") # Made wider
         self.db = Database()
         self.sound = SoundManager()
         
-        self.editing_id = None # Tracks if we are editing a habit
-
-        # Background Thread
+        self.editing_id = None
         self.stop_thread = False
         self.thread = threading.Thread(target=self.run_scheduler, daemon=True)
         self.thread.start()
 
-        # Layout
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
         
@@ -37,7 +34,6 @@ class App(ctk.CTk):
         self.main_area = ctk.CTkFrame(self, fg_color="transparent")
         self.main_area.grid(row=0, column=1, sticky="nsew", padx=30, pady=30)
         
-        # State for filtering
         self.current_filter = "All"
         self.show_dashboard()
 
@@ -45,9 +41,9 @@ class App(ctk.CTk):
         while not self.stop_thread:
             current_time = datetime.now().strftime("%H:%M")
             try:
-                # Scheduler ignores category filter, it checks EVERYTHING
                 habits = self.db.get_habits(category_filter="All")
-                for (h_id, name, remind_time, cat, is_done) in habits:
+                # Unpack new tuple size (h_id, name, time, cat, target, is_done, progress)
+                for (h_id, name, remind_time, cat, target, is_done, progress) in habits:
                     if remind_time and not is_done:
                         if remind_time == current_time:
                             self.sound.play_notification()
@@ -63,49 +59,51 @@ class App(ctk.CTk):
     def show_dashboard(self):
         self.clear_frame()
         
-        # --- HEADER (Title + Clock) ---
+        # --- HEADER ---
         header_frame = ctk.CTkFrame(self.main_area, fg_color="transparent")
         header_frame.pack(fill="x", pady=(0, 10))
         ctk.CTkLabel(header_frame, text="Today's Focus", font=("Segoe UI", 32, "bold")).pack(side="left")
         RealTimeClock(header_frame).pack(side="left", padx=20)
 
-        # --- CONTROLS ROW (Add/Edit Inputs) ---
+        # --- CONTROLS ---
         control_frame = ctk.CTkFrame(self.main_area, fg_color="#2b2b2b", corner_radius=10)
         control_frame.pack(fill="x", pady=(0, 20), ipady=5)
 
-        # Inputs
-        self.name_entry = ctk.CTkEntry(control_frame, placeholder_text="Habit Name...", width=250)
-        self.name_entry.pack(side="left", padx=10, pady=10)
+        # 1. Name
+        self.name_entry = ctk.CTkEntry(control_frame, placeholder_text="Habit Name...", width=200)
+        self.name_entry.pack(side="left", padx=(15, 5), pady=10)
         
-        self.time_entry = ctk.CTkEntry(control_frame, placeholder_text="09:00", width=80)
-        self.time_entry.pack(side="left", padx=5)
-        
-        # Category Dropdown
+        # 2. Category
         self.cat_var = ctk.StringVar(value="General")
-        self.cat_menu = ctk.CTkComboBox(control_frame, values=["General", "Health", "Work", "Learning"], 
-                                        variable=self.cat_var, width=110, state="readonly")
-        self.cat_menu.pack(side="left", padx=5)
+        ctk.CTkComboBox(control_frame, values=["General", "Health", "Work", "Learning"], 
+                        variable=self.cat_var, width=100, state="readonly").pack(side="left", padx=5)
 
-        # Action Button (Dynamic Text: Add vs Update)
-        self.action_btn = ctk.CTkButton(control_frame, text="+ Add Task", width=100, command=self.save_habit_event)
-        self.action_btn.pack(side="left", padx=10)
+        # 3. Frequency (NEW)
+        self.freq_var = ctk.StringVar(value="Daily")
+        freq_options = ["Daily", "1x / Week", "2x / Week", "3x / Week", "4x / Week", "5x / Week"]
+        ctk.CTkComboBox(control_frame, values=freq_options, variable=self.freq_var, width=110, state="readonly").pack(side="left", padx=5)
+
+        # 4. Time
+        ctk.CTkLabel(control_frame, text="At:", text_color="grey").pack(side="left", padx=(10, 2))
+        self.time_entry = ctk.CTkEntry(control_frame, placeholder_text="09:00", placeholder_text_color="#AAAAAA", width=70)
+        self.time_entry.pack(side="left", padx=2)
+
+        # 5. Button
+        self.action_btn = ctk.CTkButton(control_frame, text="+ Add", width=80, command=self.save_habit_event)
+        self.action_btn.pack(side="left", padx=15)
         
-        # Cancel Edit Button (Hidden by default)
         self.cancel_btn = ctk.CTkButton(control_frame, text="✕", width=30, fg_color="#444", command=self.cancel_edit)
-        
-        # --- FILTER TABS ---
+
+        # --- FILTERS ---
         filter_frame = ctk.CTkFrame(self.main_area, fg_color="transparent")
         filter_frame.pack(fill="x", pady=(0, 10))
-        
-        categories = ["All", "Health", "Work", "Learning"]
-        for cat in categories:
+        for cat in ["All", "Health", "Work", "Learning"]:
             btn_color = "#2CC985" if self.current_filter == cat else "transparent"
             text_col = "white" if self.current_filter == cat else "grey"
-            ctk.CTkButton(filter_frame, text=cat, width=60, height=25, fg_color=btn_color, 
-                          text_color=text_col, corner_radius=20,
+            ctk.CTkButton(filter_frame, text=cat, width=60, height=25, fg_color=btn_color, text_color=text_col, corner_radius=20,
                           command=lambda c=cat: self.set_filter(c)).pack(side="left", padx=5)
 
-        # --- PROGRESS & LIST ---
+        # --- LIST ---
         self.progress = ctk.CTkProgressBar(self.main_area, height=10, corner_radius=8)
         self.progress.pack(fill="x", pady=(0, 15))
         self.progress.set(0)
@@ -116,34 +114,37 @@ class App(ctk.CTk):
 
     def set_filter(self, category):
         self.current_filter = category
-        self.show_dashboard() # Reload UI with new filter
+        self.show_dashboard()
 
     def load_habits_list(self):
         for widget in self.scroll_frame.winfo_children(): widget.destroy()
         
-        # Pass filter to DB
         habits = self.db.get_habits(self.current_filter)
         total = len(habits)
         done_count = 0
 
-        for (h_id, name, remind_time, category, is_done) in habits:
+        # Now unpacking 7 items from DB
+        for (h_id, name, remind_time, category, target, is_done, progress) in habits:
             streak = self.db.get_streak(h_id)
             if is_done: done_count += 1
             disp_time = remind_time if remind_time else ""
             
-            HabitCard(self.scroll_frame, h_id, name, disp_time, category, is_done, streak, 
+            HabitCard(self.scroll_frame, h_id, name, disp_time, category, target, progress, is_done, streak, 
                       self.toggle_habit, self.delete_habit_event, self.start_edit_event).pack(fill="x", pady=6)
 
         if total > 0: self.progress.set(done_count / total)
         else: self.progress.set(0)
 
-    # --- ACTIONS ---
     def save_habit_event(self):
         name = self.name_entry.get()
         time_val = self.time_entry.get().strip()
         cat = self.cat_var.get()
+        freq_str = self.freq_var.get()
         
-        # Time Validation
+        # Parse Frequency to Target Integer
+        if freq_str == "Daily": target = 0
+        else: target = int(freq_str[0]) # Extracts '3' from "3x / Week"
+
         valid_time = ""
         if time_val:
             try: valid_time = datetime.strptime(time_val, "%H:%M").strftime("%H:%M")
@@ -151,39 +152,37 @@ class App(ctk.CTk):
 
         if name:
             if self.editing_id:
-                # UPDATE EXISTING
-                self.db.update_habit(self.editing_id, name, valid_time, cat)
-                self.cancel_edit() # Reset mode
+                self.db.update_habit(self.editing_id, name, valid_time, cat, target)
+                self.cancel_edit()
             else:
-                # ADD NEW
-                self.db.add_habit(name, valid_time, cat)
+                self.db.add_habit(name, valid_time, cat, target)
                 self.name_entry.delete(0, "end")
                 self.time_entry.delete(0, "end")
-            
             self.load_habits_list()
 
-    def start_edit_event(self, h_id, name, time_val, category):
-        # Enter Edit Mode
+    def start_edit_event(self, h_id, name, time_val, category, target):
         self.editing_id = h_id
         
-        # 1. Fill inputs with existing data
         self.name_entry.delete(0, "end"); self.name_entry.insert(0, name)
         self.time_entry.delete(0, "end"); 
         if time_val: self.time_entry.insert(0, time_val)
         self.cat_var.set(category)
         
-        # 2. Change Button Style
+        # Set Frequency Dropdown
+        if target == 0: self.freq_var.set("Daily")
+        else: self.freq_var.set(f"{target}x / Week")
+
         self.action_btn.configure(text="💾 Save", fg_color="#e67e22", hover_color="#d35400")
-        self.cancel_btn.pack(side="left", padx=5) # Show cancel button
+        self.cancel_btn.pack(side="left", padx=5)
 
     def cancel_edit(self):
-        # Reset to default "Add Mode"
         self.editing_id = None
         self.name_entry.delete(0, "end")
         self.time_entry.delete(0, "end")
         self.cat_var.set("General")
-        self.action_btn.configure(text="+ Add Task", fg_color="#2CC985", hover_color="#1e8e5e")
-        self.cancel_btn.pack_forget() # Hide cancel button
+        self.freq_var.set("Daily")
+        self.action_btn.configure(text="+ Add", fg_color="#2CC985", hover_color="#1e8e5e")
+        self.cancel_btn.pack_forget()
 
     def toggle_habit(self, h_id, is_checked):
         self.db.toggle_habit(h_id, is_checked)
@@ -192,13 +191,13 @@ class App(ctk.CTk):
 
     def delete_habit_event(self, h_id):
         self.db.delete_habit(h_id)
-        if self.editing_id == h_id: self.cancel_edit() # Cancel edit if deleting that item
+        if self.editing_id == h_id: self.cancel_edit()
         self.load_habits_list()
 
     def show_analytics(self): 
         # (Same analytics logic)
         self.clear_frame()
-        # ... (Your analytics code goes here)
+        # ...
 
     def clear_frame(self):
         for w in self.main_area.winfo_children(): w.destroy()

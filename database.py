@@ -14,19 +14,23 @@ class Database:
             database=os.getenv('DB_NAME')
         )
 
-    # UPDATED: Now fetches category
     def get_habits(self, category_filter=None):
         conn = self.get_connection()
         cursor = conn.cursor()
         
+        # LOGIC:
+        # 1. 'is_done_today': Checks if we did it TODAY.
+        # 2. 'weekly_progress': Counts how many times we did it THIS WEEK (Monday-Sunday).
         query = """
-        SELECT h.habit_id, h.habit_name, h.reminder_time, h.category,
-               CASE WHEN d.log_id IS NOT NULL THEN 1 ELSE 0 END as is_done
+        SELECT h.habit_id, h.habit_name, h.reminder_time, h.category, h.weekly_target,
+               CASE WHEN d.log_id IS NOT NULL THEN 1 ELSE 0 END as is_done_today,
+               (SELECT COUNT(*) FROM daily_logs dl 
+                WHERE dl.habit_id = h.habit_id 
+                AND YEARWEEK(dl.log_date, 1) = YEARWEEK(CURDATE(), 1)) as weekly_progress
         FROM habits h
         LEFT JOIN daily_logs d ON h.habit_id = d.habit_id AND d.log_date = CURDATE()
         """
         
-        # Add Filter Logic
         if category_filter and category_filter != "All":
             query += f" WHERE h.category = '{category_filter}'"
             
@@ -35,22 +39,22 @@ class Database:
         conn.close()
         return result
 
-    # UPDATED: Accepts category
-    def add_habit(self, name, time_str, category):
+    # UPDATED: Now accepts 'target' (int)
+    def add_habit(self, name, time_str, category, target):
         conn = self.get_connection()
         cursor = conn.cursor()
         if time_str == "": time_str = None
-        cursor.execute("INSERT INTO habits (habit_name, reminder_time, category) VALUES (%s, %s, %s)", (name, time_str, category))
+        cursor.execute("INSERT INTO habits (habit_name, reminder_time, category, weekly_target) VALUES (%s, %s, %s, %s)", 
+                       (name, time_str, category, target))
         conn.commit()
         conn.close()
 
-    # NEW: Update Function for Editing
-    def update_habit(self, habit_id, name, time_str, category):
+    def update_habit(self, habit_id, name, time_str, category, target):
         conn = self.get_connection()
         cursor = conn.cursor()
         if time_str == "": time_str = None
-        cursor.execute("UPDATE habits SET habit_name=%s, reminder_time=%s, category=%s WHERE habit_id=%s", 
-                       (name, time_str, category, habit_id))
+        cursor.execute("UPDATE habits SET habit_name=%s, reminder_time=%s, category=%s, weekly_target=%s WHERE habit_id=%s", 
+                       (name, time_str, category, target, habit_id))
         conn.commit()
         conn.close()
 
