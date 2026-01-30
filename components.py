@@ -1,73 +1,60 @@
 import customtkinter as ctk
 
 class HabitCard(ctk.CTkFrame):
-    def __init__(self, parent, h_id, name, is_done, streak, toggle_callback):
+    def __init__(self, parent, h_id, name, time, is_done, streak, toggle_callback):
         super().__init__(parent, fg_color="#2b2b2b", corner_radius=15, border_width=1, border_color="#333333")
         self.h_id = h_id
         self.toggle_callback = toggle_callback
         
-        # Grid Layout
-        self.columnconfigure(0, weight=1) # Name takes all space
+        self.columnconfigure(0, weight=1)
         
-        # 1. Habit Name
-        # If done, we make it green text, else white
+        # 1. Name and Time Container
+        info_frame = ctk.CTkFrame(self, fg_color="transparent")
+        info_frame.grid(row=0, column=0, padx=20, pady=20, sticky="ew")
+        
+        # Name
         text_color = "#2CC985" if is_done else "white"
-        self.name_lbl = ctk.CTkLabel(self, text=name, font=("Segoe UI", 16, "bold"), text_color=text_color, anchor="w")
-        self.name_lbl.grid(row=0, column=0, padx=20, pady=20, sticky="ew")
+        self.name_lbl = ctk.CTkLabel(info_frame, text=name, font=("Segoe UI", 16, "bold"), text_color=text_color, anchor="w")
+        self.name_lbl.pack(side="left")
         
-        # 2. Streak Badge (Only shows if streak > 0)
+        # UPDATED: Time Label (Small clock icon)
+        if time:
+            self.time_lbl = ctk.CTkLabel(info_frame, text=f"⏰ {time}", font=("Arial", 12), text_color="grey")
+            self.time_lbl.pack(side="left", padx=10)
+
+        # 2. Streak Badge
         if streak > 0:
-            fire_color = "#FF9F1C" if streak > 3 else "#888888" # Orange if on fire
+            fire_color = "#FF9F1C" if streak > 3 else "#888888"
             self.streak_frame = ctk.CTkFrame(self, fg_color="transparent", border_width=1, border_color=fire_color, corner_radius=20, height=25)
             self.streak_frame.grid(row=0, column=1, padx=10)
-            
             ctk.CTkLabel(self.streak_frame, text=f"🔥 {streak}", font=("Arial", 12, "bold"), text_color=fire_color).pack(padx=10, pady=2)
 
-        # 3. Modern Checkbox
+        # 3. Checkbox
         self.chk = ctk.CTkCheckBox(
-            self, 
-            text="", 
-            width=28, 
-            height=28, 
-            corner_radius=8,
-            border_color="#2CC985",
-            fg_color="#2CC985",
-            hover_color="#1e8e5e",
+            self, text="", width=28, height=28, corner_radius=8,
+            border_color="#2CC985", fg_color="#2CC985", hover_color="#1e8e5e",
             command=self.on_click
         )
         if is_done: self.chk.select()
         self.chk.grid(row=0, column=2, padx=(0, 20))
 
     def on_click(self):
-        # We pass the ID and the NEW state (1 or 0) back to main.py
         self.toggle_callback(self.h_id, self.chk.get())
 
 class Sidebar(ctk.CTkFrame):
     def __init__(self, parent, nav_callback):
         super().__init__(parent, width=220, corner_radius=0, fg_color="#1a1a1a")
         self.nav_callback = nav_callback
-        
-        # Logo Area
         self.logo = ctk.CTkLabel(self, text="WINTER ARC", font=("Impact", 28), text_color="#2CC985")
         self.logo.pack(pady=50)
-
-        # Navigation Buttons
         self.create_nav_btn("🏠  Dashboard", "dashboard")
         self.create_nav_btn("📊  Analytics", "analytics")
-        
-        # Bottom Version Label
-        ctk.CTkLabel(self, text="v1.0.0", text_color="grey").pack(side="bottom", pady=20)
+        ctk.CTkLabel(self, text="v1.1.0", text_color="grey").pack(side="bottom", pady=20)
 
     def create_nav_btn(self, text, value):
         btn = ctk.CTkButton(
-            self, 
-            text=text, 
-            fg_color="transparent", 
-            text_color="#cccccc",
-            hover_color="#333333",
-            anchor="w",
-            height=40,
-            font=("Segoe UI", 16),
+            self, text=text, fg_color="transparent", text_color="#cccccc",
+            hover_color="#333333", anchor="w", height=40, font=("Segoe UI", 16),
             command=lambda: self.nav_callback(value)
         )
         btn.pack(fill="x", padx=10, pady=5)

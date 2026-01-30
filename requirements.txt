@@ -1,3 +1,5 @@
 customtkinter
 mysql-connector-python
 python-dotenv
+plyer
+schedule
