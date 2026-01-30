@@ -1,16 +1,11 @@
 import customtkinter as ctk
-from PIL import Image  # <--- NEW IMPORT
+from PIL import Image
 import os
 
 class HabitCard(ctk.CTkFrame):
-    def __init__(self, parent, h_id, name, time, category, target, progress, is_done, streak, toggle_callback, delete_callback, edit_callback):
+    def __init__(self, parent, h_id, name, time, category, color, target, progress, is_done, streak, toggle_callback, delete_callback, edit_callback):
         
-        # Color Logic
-        border_col = "#333333"
-        if category == "Health": border_col = "#3498db"
-        elif category == "Work": border_col = "#e74c3c"
-        elif category == "Learning": border_col = "#2ecc71"
-        
+        border_col = color if color else "#333333"
         super().__init__(parent, fg_color="#2b2b2b", corner_radius=15, border_width=2, border_color=border_col)
         
         self.h_id = h_id
@@ -25,19 +20,16 @@ class HabitCard(ctk.CTkFrame):
         
         self.columnconfigure(0, weight=1)
         
-        # --- LOAD ICONS ---
-        # We try/except to prevent crashing if files are missing
         try:
             self.edit_icon = ctk.CTkImage(light_image=Image.open("assets/edit.png"), 
-                                          dark_image=Image.open("assets/edit.png"), size=(30, 30))
+                                          dark_image=Image.open("assets/edit.png"), size=(18, 18))
             self.del_icon = ctk.CTkImage(light_image=Image.open("assets/delete.png"), 
-                                         dark_image=Image.open("assets/delete.png"), size=(25, 25))
+                                         dark_image=Image.open("assets/delete.png"), size=(18, 18))
             has_icons = True
         except:
-            print("⚠️ Icons not found in 'assets' folder. Using text instead.")
             has_icons = False
 
-        # --- ROW 1: Info ---
+        # ROW 1: Info
         info_frame = ctk.CTkFrame(self, fg_color="transparent")
         info_frame.grid(row=0, column=0, padx=15, pady=(15, 5), sticky="ew")
         
@@ -48,7 +40,7 @@ class HabitCard(ctk.CTkFrame):
         if time:
             ctk.CTkLabel(info_frame, text=f"⏰ {time}", font=("Arial", 12), text_color="grey").pack(side="left")
 
-        # --- ROW 2: Weekly Progress ---
+        # ROW 2: Weekly Progress
         if target > 0:
             prog_frame = ctk.CTkFrame(self, fg_color="transparent", height=10)
             prog_frame.grid(row=1, column=0, padx=15, pady=(0, 15), sticky="ew")
@@ -75,26 +67,19 @@ class HabitCard(ctk.CTkFrame):
         if is_done: self.chk.select()
         self.chk.grid(row=0, column=2, padx=(0, 10))
 
-        # --- BUTTONS (Updated to use Icons) ---
-        
-        # EDIT BUTTON
+        # Buttons
         if has_icons:
             self.edit_btn = ctk.CTkButton(self, text="", image=self.edit_icon, width=30, height=30, 
                                           fg_color="transparent", hover_color="#333333", command=self.on_edit)
-        else:
-            # Fallback to emoji if image fails
-            self.edit_btn = ctk.CTkButton(self, text="✏️", width=30, height=30, 
-                                          fg_color="transparent", hover_color="#333333", command=self.on_edit)
-        self.edit_btn.grid(row=0, column=3, padx=(0, 5))
-
-        # DELETE BUTTON
-        if has_icons:
             self.del_btn = ctk.CTkButton(self, text="", image=self.del_icon, width=30, height=30, 
                                          fg_color="transparent", hover_color="#c0392b", command=self.on_delete)
         else:
-            # Fallback to emoji
+            self.edit_btn = ctk.CTkButton(self, text="✏️", width=30, height=30, 
+                                          fg_color="transparent", hover_color="#333333", command=self.on_edit)
             self.del_btn = ctk.CTkButton(self, text="🗑️", width=30, height=30, 
                                          fg_color="transparent", hover_color="#c0392b", command=self.on_delete)
+            
+        self.edit_btn.grid(row=0, column=3, padx=(0, 5))
         self.del_btn.grid(row=0, column=4, padx=(0, 15))
 
     def on_toggle(self): self.toggle_callback(self.h_id, self.chk.get())
@@ -107,7 +92,6 @@ class Sidebar(ctk.CTkFrame):
         self.nav_callback = nav_callback
         self.theme_callback = theme_callback
         
-        # Main Title
         ctk.CTkLabel(self, text="QUESTLOG", font=("Impact", 28), text_color="#2CC985").pack(pady=(40, 20))
 
         # PLAYER STATS
@@ -115,33 +99,26 @@ class Sidebar(ctk.CTkFrame):
         stats_frame.pack(fill="x", padx=15, pady=(0, 30))
         
         ctk.CTkLabel(stats_frame, text=f"LVL {level}", font=("Arial", 10, "bold"), text_color="#2CC985").pack(pady=(10,0))
-        
         titles = {1: "Novice", 2: "Apprentice", 3: "Hustler", 4: "Master", 5: "God Mode"}
         title_text = titles.get(level, "Legend")
         ctk.CTkLabel(stats_frame, text=title_text.upper(), font=("Segoe UI", 16, "bold"), text_color="white").pack(pady=(0, 5))
-        
         ctk.CTkLabel(stats_frame, text=f"{total_xp} / {next_level_xp} XP", font=("Arial", 10), text_color="grey").pack(anchor="w", padx=10)
         
         xp_bar = ctk.CTkProgressBar(stats_frame, height=8, corner_radius=5, progress_color="#e67e22")
         xp_bar.pack(fill="x", padx=10, pady=(0, 15))
-        
         progress = total_xp / next_level_xp if next_level_xp > 0 else 1
         xp_bar.set(progress)
 
-        # Nav Buttons
         self.create_nav_btn("🏠  Dashboard", "dashboard")
         self.create_nav_btn("📊  Analytics", "analytics")
 
-        # Themes
         ctk.CTkLabel(self, text="UNLOCKABLES", font=("Arial", 10, "bold"), text_color="#555").pack(side="bottom", pady=(0, 10))
-        
         if level >= 5:
             self.theme_btn = ctk.CTkButton(self, text="🎨 Cyberpunk", fg_color="#8e44ad", hover_color="#9b59b6", 
                                            height=30, command=lambda: self.theme_callback("cyberpunk"))
         else:
             self.theme_btn = ctk.CTkButton(self, text="🔒 Lvl 5 to Unlock", fg_color="#333", state="disabled", 
                                            text_color="#555", height=30)
-        
         self.theme_btn.pack(side="bottom", padx=20, pady=20)
 
     def create_nav_btn(self, text, value):
