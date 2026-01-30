@@ -4,19 +4,24 @@ import time
 from plyer import notification
 from datetime import datetime
 
+# Import Custom Modules
 from database import Database
 from components import HabitCard, Sidebar
 from clock_widget import RealTimeClock 
 from sounds import SoundManager
+from analytics import AnalyticsPanel  # New Analytics Module
 
+# App Configuration
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("green")
 
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("Winter Arc Tracker v3.0 (RPG)")
+        self.title("Winter Arc Tracker v3.0 (RPG Edition)")
         self.geometry("1100x700")
+        
+        # Initialize Backend Systems
         self.db = Database()
         self.sound = SoundManager()
         
@@ -25,40 +30,40 @@ class App(ctk.CTk):
         self.level = 1
         self.next_level_xp = 100
         
+        # UI State
         self.editing_id = None
         self.current_filter = "All"
         
+        # Start Background Scheduler Thread
         self.stop_thread = False
         self.thread = threading.Thread(target=self.run_scheduler, daemon=True)
         self.thread.start()
 
-        # Layout
+        # Grid Layout Configuration
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
         
-        self.calculate_xp() # Initial Calculation
+        # 1. Calculate Initial XP
+        self.calculate_xp()
         
-        # Note: We initialize sidebar in 'refresh_sidebar' now
+        # 2. Sidebar (Initialized via refresh to pass XP data)
         self.sidebar = None
         self.refresh_sidebar()
 
+        # 3. Main Content Area
         self.main_area = ctk.CTkFrame(self, fg_color="transparent")
         self.main_area.grid(row=0, column=1, sticky="nsew", padx=30, pady=30)
         
+        # Show Dashboard by default
         self.show_dashboard()
 
     def calculate_xp(self):
+        """Calculates player level based on total completed tasks."""
         # 1 Task = 10 XP
         completions = self.db.get_total_completions()
         self.total_xp = completions * 10
         
         # Leveling Logic
-        # Lvl 1: 0-100 XP
-        # Lvl 2: 100-300 XP
-        # Lvl 3: 300-600 XP
-        # Lvl 4: 600-1000 XP
-        # Lvl 5: 1000+ XP (Master)
-        
         if self.total_xp < 100:
             self.level = 1
             self.next_level_xp = 100
@@ -73,82 +78,115 @@ class App(ctk.CTk):
             self.next_level_xp = 1000
         else:
             self.level = 5
-            self.next_level_xp = 5000 # God mode
+            self.next_level_xp = 5000 # God Mode
 
     def refresh_sidebar(self):
-        # Destroys old sidebar and creates a new one with updated XP
+        """Re-draws the sidebar to update the XP bar."""
         if self.sidebar:
             self.sidebar.destroy()
             
-        self.sidebar = Sidebar(self, self.navigate, self.total_xp, self.level, self.next_level_xp, self.change_theme)
+        self.sidebar = Sidebar(
+            self, 
+            nav_callback=self.navigate, 
+            total_xp=self.total_xp, 
+            level=self.level, 
+            next_level_xp=self.next_level_xp, 
+            theme_callback=self.change_theme
+        )
         self.sidebar.grid(row=0, column=0, sticky="nsew")
 
     def change_theme(self, theme_name):
-        # In a real app, this would save to a config file and restart
-        # For now, we give feedback
+        """Callback for unlocking themes."""
         if theme_name == "cyberpunk":
-            ctk.set_default_color_theme("dark-blue") # Example switch
-            notification.notify(title="Theme Unlocked!", message="Cyberpunk mode active. Restart app to see full changes.", timeout=5)
+            # For now, we simulate the theme switch
+            ctk.set_default_color_theme("dark-blue") 
+            notification.notify(title="Theme Unlocked!", message="Cyberpunk mode active.", timeout=3)
 
     def run_scheduler(self):
+        """Background thread to check for time-based reminders."""
+        print("🕒 Scheduler thread started...")
         while not self.stop_thread:
             current_time = datetime.now().strftime("%H:%M")
             try:
+                # We check ALL habits regardless of current filter
                 habits = self.db.get_habits(category_filter="All")
+                
+                # Unpack the 7 values returned by the updated SQL query
                 for (h_id, name, remind_time, cat, target, is_done, progress) in habits:
                     if remind_time and not is_done:
                         if remind_time == current_time:
+                            print(f"🔔 MATCH FOUND: {name}")
+                            
                             self.sound.play_notification()
-                            notification.notify(title="Time to Grind!", message=f"{name}", timeout=10)
-                            time.sleep(60)
-            except: pass
+                            
+                            notification.notify(
+                                title="Time to Grind! ⚡",
+                                message=f"Don't forget to: {name}",
+                                timeout=10
+                            )
+                            time.sleep(60) # Prevent spamming for the same minute
+            except Exception as e:
+                print(f"Scheduler error: {e}")
+            
             time.sleep(10)
 
-    def navigate(self, page):
-        if page == "dashboard": self.show_dashboard()
-        elif page == "analytics": self.show_analytics()
+    def navigate(self, page_name):
+        if page_name == "dashboard": self.show_dashboard()
+        elif page_name == "analytics": self.show_analytics()
 
     def show_dashboard(self):
         self.clear_frame()
         
-        # HEADER
+        # --- HEADER ---
         header_frame = ctk.CTkFrame(self.main_area, fg_color="transparent")
         header_frame.pack(fill="x", pady=(0, 10))
         ctk.CTkLabel(header_frame, text="Today's Focus", font=("Segoe UI", 32, "bold")).pack(side="left")
         RealTimeClock(header_frame).pack(side="left", padx=20)
 
-        # CONTROLS
+        # --- CONTROLS (Add/Edit) ---
         control_frame = ctk.CTkFrame(self.main_area, fg_color="#2b2b2b", corner_radius=10)
         control_frame.pack(fill="x", pady=(0, 20), ipady=5)
 
+        # 1. Name Input
         self.name_entry = ctk.CTkEntry(control_frame, placeholder_text="Habit Name...", width=200)
         self.name_entry.pack(side="left", padx=(15, 5), pady=10)
         
+        # 2. Category Dropdown
         self.cat_var = ctk.StringVar(value="General")
-        ctk.CTkComboBox(control_frame, values=["General", "Health", "Work", "Learning"], variable=self.cat_var, width=100, state="readonly").pack(side="left", padx=5)
+        ctk.CTkComboBox(control_frame, values=["General", "Health", "Work", "Learning"], 
+                        variable=self.cat_var, width=100, state="readonly").pack(side="left", padx=5)
 
+        # 3. Frequency Dropdown
         self.freq_var = ctk.StringVar(value="Daily")
-        ctk.CTkComboBox(control_frame, values=["Daily", "1x / Week", "2x / Week", "3x / Week"], variable=self.freq_var, width=110, state="readonly").pack(side="left", padx=5)
+        freq_options = ["Daily", "1x / Week", "2x / Week", "3x / Week", "4x / Week", "5x / Week"]
+        ctk.CTkComboBox(control_frame, values=freq_options, 
+                        variable=self.freq_var, width=110, state="readonly").pack(side="left", padx=5)
 
+        # 4. Time Input
         ctk.CTkLabel(control_frame, text="At:", text_color="grey").pack(side="left", padx=(10, 2))
-        self.time_entry = ctk.CTkEntry(control_frame, placeholder_text="09:00", placeholder_text_color="#AAAAAA", width=70)
+        self.time_entry = ctk.CTkEntry(control_frame, placeholder_text="09:00", 
+                                       placeholder_text_color="#AAAAAA", width=70)
         self.time_entry.pack(side="left", padx=2)
 
+        # 5. Add/Save Button
         self.action_btn = ctk.CTkButton(control_frame, text="+ Add", width=80, command=self.save_habit_event)
         self.action_btn.pack(side="left", padx=15)
         
+        # Cancel Button (Hidden initially)
         self.cancel_btn = ctk.CTkButton(control_frame, text="✕", width=30, fg_color="#444", command=self.cancel_edit)
 
-        # FILTERS
+        # --- FILTERS ---
         filter_frame = ctk.CTkFrame(self.main_area, fg_color="transparent")
         filter_frame.pack(fill="x", pady=(0, 10))
+        
         for cat in ["All", "Health", "Work", "Learning"]:
             btn_color = "#2CC985" if self.current_filter == cat else "transparent"
             text_col = "white" if self.current_filter == cat else "grey"
-            ctk.CTkButton(filter_frame, text=cat, width=60, height=25, fg_color=btn_color, text_color=text_col, corner_radius=20,
+            ctk.CTkButton(filter_frame, text=cat, width=60, height=25, fg_color=btn_color, 
+                          text_color=text_col, corner_radius=20,
                           command=lambda c=cat: self.set_filter(c)).pack(side="left", padx=5)
 
-        # LIST
+        # --- HABIT LIST ---
         self.progress = ctk.CTkProgressBar(self.main_area, height=10, corner_radius=8)
         self.progress.pack(fill="x", pady=(0, 15))
         self.progress.set(0)
@@ -173,8 +211,15 @@ class App(ctk.CTk):
             if is_done: done_count += 1
             disp_time = remind_time if remind_time else ""
             
-            HabitCard(self.scroll_frame, h_id, name, disp_time, category, target, progress, is_done, streak, 
-                      self.toggle_habit, self.delete_habit_event, self.start_edit_event).pack(fill="x", pady=6)
+            HabitCard(
+                self.scroll_frame, h_id, name, disp_time, category, target, progress, is_done, streak, 
+                self.toggle_habit, 
+                self.delete_habit_event, 
+                self.start_edit_event
+            )
+            # Use pack to stack them vertically
+            # Accessing the last child added to scroll_frame to pack it
+            self.scroll_frame.winfo_children()[-1].pack(fill="x", pady=6)
 
         if total > 0: self.progress.set(done_count / total)
         else: self.progress.set(0)
@@ -184,6 +229,8 @@ class App(ctk.CTk):
         time_val = self.time_entry.get().strip()
         cat = self.cat_var.get()
         freq_str = self.freq_var.get()
+        
+        # Convert "3x / Week" to int 3
         if freq_str == "Daily": target = 0
         else: target = int(freq_str[0])
 
@@ -194,22 +241,30 @@ class App(ctk.CTk):
 
         if name:
             if self.editing_id:
+                # Update Existing
                 self.db.update_habit(self.editing_id, name, valid_time, cat, target)
                 self.cancel_edit()
             else:
+                # Add New
                 self.db.add_habit(name, valid_time, cat, target)
                 self.name_entry.delete(0, "end")
                 self.time_entry.delete(0, "end")
+            
             self.load_habits_list()
 
     def start_edit_event(self, h_id, name, time_val, category, target):
         self.editing_id = h_id
+        
+        # Fill inputs
         self.name_entry.delete(0, "end"); self.name_entry.insert(0, name)
         self.time_entry.delete(0, "end"); 
         if time_val: self.time_entry.insert(0, time_val)
         self.cat_var.set(category)
+        
         if target == 0: self.freq_var.set("Daily")
         else: self.freq_var.set(f"{target}x / Week")
+
+        # Change button state
         self.action_btn.configure(text="💾 Save", fg_color="#e67e22", hover_color="#d35400")
         self.cancel_btn.pack(side="left", padx=5)
 
@@ -224,11 +279,13 @@ class App(ctk.CTk):
 
     def toggle_habit(self, h_id, is_checked):
         self.db.toggle_habit(h_id, is_checked)
-        if is_checked: self.sound.play_success()
         
-        # UPDATE GAMIFICATION
+        if is_checked: 
+            self.sound.play_success()
+        
+        # Recalculate XP and refresh Sidebar immediately
         self.calculate_xp()
-        self.refresh_sidebar() # Update the XP bar immediately!
+        self.refresh_sidebar()
         
         self.load_habits_list()
 
@@ -236,15 +293,15 @@ class App(ctk.CTk):
         self.db.delete_habit(h_id)
         if self.editing_id == h_id: self.cancel_edit()
         
-        # Update XP (XP might go down if we deleted tasks, but usually we just delete the habit def)
         self.calculate_xp()
         self.refresh_sidebar()
-        
         self.load_habits_list()
 
     def show_analytics(self): 
         self.clear_frame()
-        # Analytics logic...
+        # Initialize the separated Analytics Panel
+        analytics_view = AnalyticsPanel(self.main_area, self.db)
+        analytics_view.pack(fill="both", expand=True)
 
     def clear_frame(self):
         for w in self.main_area.winfo_children(): w.destroy()
