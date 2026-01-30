@@ -77,3 +77,15 @@ class Database:
         data = {str(row[0]): row[1] for row in cursor.fetchall()}
         conn.close()
         return data
+    
+    
+
+    def delete_habit(self, habit_id):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        # 1. Delete associated logs first (Clean up history)
+        cursor.execute("DELETE FROM daily_logs WHERE habit_id = %s", (habit_id,))
+        # 2. Delete the habit itself
+        cursor.execute("DELETE FROM habits WHERE habit_id = %s", (habit_id,))
+        conn.commit()
+        conn.close()
