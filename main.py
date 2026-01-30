@@ -4,10 +4,11 @@ import time
 from plyer import notification
 from datetime import datetime
 
-# Import modules
+# Import Custom Modules
 from database import Database
 from components import HabitCard, Sidebar
 from clock_widget import RealTimeClock 
+from sounds import SoundManager  # <--- NEW IMPORT
 
 # App Configuration
 ctk.set_appearance_mode("dark")
@@ -18,7 +19,10 @@ class App(ctk.CTk):
         super().__init__()
         self.title("Winter Arc Tracker")
         self.geometry("950x650")
+        
+        # Initialize Backend Systems
         self.db = Database()
+        self.sound = SoundManager() # <--- Initialize Sound
         
         # 1. TEST NOTIFICATION ON STARTUP
         print("--- STARTING APP ---")
@@ -33,7 +37,7 @@ class App(ctk.CTk):
         except Exception as e:
             print(f"❌ Notification failed: {e}")
 
-        # Start Background Thread
+        # Start Background Scheduler Thread
         self.stop_thread = False
         self.thread = threading.Thread(target=self.run_scheduler, daemon=True)
         self.thread.start()
@@ -51,34 +55,34 @@ class App(ctk.CTk):
         self.show_dashboard()
 
     def run_scheduler(self):
-        """Checks time every 10 seconds and prints to console."""
+        """Checks time every 10 seconds."""
         print("🕒 Scheduler thread started...")
         
         while not self.stop_thread:
-            # Get current time in 24h format (e.g., "09:30")
             current_time = datetime.now().strftime("%H:%M")
             
-            # DEBUG: Print to console so you know it's working
-            # print(f"checking... System: {current_time}")
-
             try:
                 habits = self.db.get_habits()
                 for (h_id, name, remind_time, is_done) in habits:
-                    # Check if habit has a time AND is not done
                     if remind_time and not is_done:
                         if remind_time == current_time:
-                            print(f"🔔 MATCH FOUND: {name} at {remind_time}")
+                            print(f"🔔 MATCH FOUND: {name}")
+                            
+                            # 1. Play Alert Sound
+                            self.sound.play_notification()  # <--- TRIGGER SOUND
+                            
+                            # 2. Show Windows Notification
                             notification.notify(
                                 title="Time to Grind! ⚡",
                                 message=f"Don't forget to: {name}",
                                 app_name="Winter Arc",
                                 timeout=10
                             )
-                            time.sleep(60) # Don't spam: wait 1 minute before checking again
+                            time.sleep(60) # Wait 1 min to avoid spamming
             except Exception as e:
                 print(f"Error in scheduler: {e}")
             
-            time.sleep(10) # Check every 10 seconds
+            time.sleep(10)
 
     def navigate(self, page_name):
         if page_name == "dashboard": self.show_dashboard()
@@ -91,14 +95,14 @@ class App(ctk.CTk):
         header_frame = ctk.CTkFrame(self.main_area, fg_color="transparent")
         header_frame.pack(fill="x", pady=(0, 20))
         
-        # 1. Title
+        # Title
         ctk.CTkLabel(header_frame, text="Today's Focus", font=("Segoe UI", 32, "bold")).pack(side="left")
         
-        # 2. Real-Time Clock 
+        # Real-Time Clock
         clock = RealTimeClock(header_frame)
         clock.pack(side="left", padx=20)
         
-        # 3. Inputs (Right side)
+        # Add & Time Inputs
         ctk.CTkButton(header_frame, text="+ Add", width=80, height=35, command=self.add_habit_event).pack(side="right")
         
         self.add_entry = ctk.CTkEntry(header_frame, placeholder_text="New Habit...", width=200, height=35)
@@ -112,7 +116,7 @@ class App(ctk.CTk):
         self.progress.pack(fill="x", pady=(0, 25))
         self.progress.set(0)
 
-        # Habit List
+        # Habit List Container
         self.scroll_frame = ctk.CTkScrollableFrame(self.main_area, fg_color="transparent")
         self.scroll_frame.pack(fill="both", expand=True)
         self.load_habits_list()
@@ -127,14 +131,13 @@ class App(ctk.CTk):
             streak = self.db.get_streak(h_id)
             if is_done: done_count += 1
             
-            # Format display time (handle None)
             display_time = remind_time if remind_time else ""
             
-            # UPDATED: Passing 'self.delete_habit_event' as the last argument
+            # Create Card with all callbacks
             card = HabitCard(
                 self.scroll_frame, h_id, name, display_time, is_done, streak, 
                 self.toggle_habit, 
-                self.delete_habit_event  # <--- NEW
+                self.delete_habit_event
             )
             card.pack(fill="x", pady=8)
 
@@ -142,27 +145,31 @@ class App(ctk.CTk):
         else: self.progress.set(0)
 
     def toggle_habit(self, h_id, is_checked):
+        # 1. Toggle DB
         self.db.toggle_habit(h_id, is_checked)
+        
+        # 2. Play Success Sound (Only if checking the box)
+        if is_checked:
+            self.sound.play_success() # <--- TRIGGER SOUND
+            
+        # 3. Reload UI
         self.load_habits_list()
 
-    # --- NEW FUNCTION FOR DELETION ---
     def delete_habit_event(self, h_id):
         self.db.delete_habit(h_id)
-        print(f"🗑️ Deleted habit ID: {h_id}")
         self.load_habits_list()
 
     def add_habit_event(self):
         text = self.add_entry.get()
         time_val = self.time_entry.get().strip()
         
-        # FIX TIME FORMAT (e.g. "9:00" -> "09:00")
+        # Format Time logic
         if time_val:
             try:
-                # This ensures the time is always strictly HH:MM
                 valid_time = datetime.strptime(time_val, "%H:%M").strftime("%H:%M")
             except ValueError:
                 print("Invalid time format! Use HH:MM")
-                valid_time = "" # Ignore invalid time
+                valid_time = ""
         else:
             valid_time = ""
 
@@ -179,11 +186,9 @@ class App(ctk.CTk):
         heatmap_frame = ctk.CTkFrame(self.main_area, fg_color="#1a1a1a", corner_radius=15)
         heatmap_frame.pack(fill="both", expand=True, padx=20, pady=20)
         
-        # Center the grid
         grid = ctk.CTkFrame(heatmap_frame, fg_color="transparent")
         grid.place(relx=0.5, rely=0.5, anchor="center")
         
-        # Note: Importing date/timedelta locally here if needed, or assume imports at top
         from datetime import date, timedelta
         data = self.db.get_activity_data()
         start = date.today() - timedelta(days=27)
