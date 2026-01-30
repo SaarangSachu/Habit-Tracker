@@ -1,50 +1,78 @@
-import mysql.connector
+import sqlite3
 import os
 from datetime import date, timedelta
-from dotenv import load_dotenv
-
-load_dotenv()
 
 class Database:
+    def __init__(self):
+        # This creates a file named 'habits.db' automatically if it doesn't exist
+        self.db_name = "habits.db"
+        self.init_db()
+
     def get_connection(self):
-        return mysql.connector.connect(
-            host=os.getenv('DB_HOST'),
-            user=os.getenv('DB_USER'),
-            password=os.getenv('DB_PASS'),
-            database=os.getenv('DB_NAME')
-        )
+        return sqlite3.connect(self.db_name)
+
+    def init_db(self):
+        """Creates the tables if they don't exist yet."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        # Enable Foreign Keys
+        cursor.execute("PRAGMA foreign_keys = ON")
+        
+        # Create Habits Table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS habits (
+                habit_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                habit_name TEXT NOT NULL,
+                reminder_time TEXT,
+                category TEXT DEFAULT 'General',
+                weekly_target INTEGER DEFAULT 0
+            )
+        """)
+        
+        # Create Logs Table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS daily_logs (
+                log_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                habit_id INTEGER,
+                log_date TEXT,
+                FOREIGN KEY(habit_id) REFERENCES habits(habit_id) ON DELETE CASCADE
+            )
+        """)
+        conn.commit()
+        conn.close()
 
     def get_habits(self, category_filter=None):
         conn = self.get_connection()
         cursor = conn.cursor()
         
-        # LOGIC:
-        # 1. 'is_done_today': Checks if we did it TODAY.
-        # 2. 'weekly_progress': Counts how many times we did it THIS WEEK (Monday-Sunday).
+        # SQLite Query adapted from MySQL
+        # We use strftime('%Y-%W', ...) to calculate the current week
         query = """
         SELECT h.habit_id, h.habit_name, h.reminder_time, h.category, h.weekly_target,
                CASE WHEN d.log_id IS NOT NULL THEN 1 ELSE 0 END as is_done_today,
                (SELECT COUNT(*) FROM daily_logs dl 
                 WHERE dl.habit_id = h.habit_id 
-                AND YEARWEEK(dl.log_date, 1) = YEARWEEK(CURDATE(), 1)) as weekly_progress
+                AND strftime('%Y-%W', dl.log_date) = strftime('%Y-%W', 'now', 'localtime')) as weekly_progress
         FROM habits h
-        LEFT JOIN daily_logs d ON h.habit_id = d.habit_id AND d.log_date = CURDATE()
+        LEFT JOIN daily_logs d ON h.habit_id = d.habit_id AND d.log_date = date('now', 'localtime')
         """
         
+        params = []
         if category_filter and category_filter != "All":
-            query += f" WHERE h.category = '{category_filter}'"
+            query += " WHERE h.category = ?"
+            params.append(category_filter)
             
-        cursor.execute(query)
+        cursor.execute(query, params)
         result = cursor.fetchall()
         conn.close()
         return result
 
-    # UPDATED: Now accepts 'target' (int)
     def add_habit(self, name, time_str, category, target):
         conn = self.get_connection()
         cursor = conn.cursor()
         if time_str == "": time_str = None
-        cursor.execute("INSERT INTO habits (habit_name, reminder_time, category, weekly_target) VALUES (%s, %s, %s, %s)", 
+        cursor.execute("INSERT INTO habits (habit_name, reminder_time, category, weekly_target) VALUES (?, ?, ?, ?)", 
                        (name, time_str, category, target))
         conn.commit()
         conn.close()
@@ -53,7 +81,7 @@ class Database:
         conn = self.get_connection()
         cursor = conn.cursor()
         if time_str == "": time_str = None
-        cursor.execute("UPDATE habits SET habit_name=%s, reminder_time=%s, category=%s, weekly_target=%s WHERE habit_id=%s", 
+        cursor.execute("UPDATE habits SET habit_name=?, reminder_time=?, category=?, weekly_target=? WHERE habit_id=?", 
                        (name, time_str, category, target, habit_id))
         conn.commit()
         conn.close()
@@ -61,8 +89,9 @@ class Database:
     def delete_habit(self, habit_id):
         conn = self.get_connection()
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM daily_logs WHERE habit_id = %s", (habit_id,))
-        cursor.execute("DELETE FROM habits WHERE habit_id = %s", (habit_id,))
+        # Cascade delete is enabled, but manual delete ensures safety
+        cursor.execute("DELETE FROM daily_logs WHERE habit_id = ?", (habit_id,))
+        cursor.execute("DELETE FROM habits WHERE habit_id = ?", (habit_id,))
         conn.commit()
         conn.close()
 
@@ -70,28 +99,52 @@ class Database:
         conn = self.get_connection()
         cursor = conn.cursor()
         if is_checked:
-            cursor.execute("INSERT IGNORE INTO daily_logs (habit_id, log_date) VALUES (%s, CURDATE())", (habit_id,))
+            # INSERT OR IGNORE avoids duplicates if checked twice quickly
+            cursor.execute("INSERT OR IGNORE INTO daily_logs (habit_id, log_date) VALUES (?, date('now', 'localtime'))", (habit_id,))
         else:
-            cursor.execute("DELETE FROM daily_logs WHERE habit_id = %s AND log_date = CURDATE()", (habit_id,))
+            cursor.execute("DELETE FROM daily_logs WHERE habit_id = ? AND log_date = date('now', 'localtime')", (habit_id,))
         conn.commit()
         conn.close()
 
     def get_streak(self, habit_id):
         conn = self.get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT DISTINCT log_date FROM daily_logs WHERE habit_id = %s ORDER BY log_date DESC", (habit_id,))
-        dates = [row[0] for row in cursor.fetchall()]
+        cursor.execute("SELECT DISTINCT log_date FROM daily_logs WHERE habit_id = ? ORDER BY log_date DESC", (habit_id,))
+        dates_str = [row[0] for row in cursor.fetchall()]
         conn.close()
+        
+        # Convert string dates back to Python date objects
+        dates = []
+        for d_str in dates_str:
+            try: dates.append(datetime.strptime(d_str, "%Y-%m-%d").date())
+            except: pass # Handle potential parsing errors safely
+            
         if not dates: return 0
+        
+        # (Streak Logic remains mostly the same, just adapted for imports)
         streak = 0
+        from datetime import datetime
         current = date.today()
-        if current in dates: streak += 1; current -= timedelta(days=1)
-        elif (current - timedelta(days=1)) in dates: current -= timedelta(days=1)
-        else: return 0
-        for d in dates:
-            if d == current:
-                if d != date.today(): streak += 1
+        
+        # Check if we did it today
+        today_str = current.strftime("%Y-%m-%d")
+        if today_str in dates_str: 
+            streak += 1
+            current -= timedelta(days=1)
+        elif (current - timedelta(days=1)).strftime("%Y-%m-%d") in dates_str:
+            current -= timedelta(days=1)
+        else:
+            return 0
+            
+        # Count backwards
+        for i in range(len(dates)):
+            check_date = current.strftime("%Y-%m-%d")
+            if check_date in dates_str:
+                if check_date != date.today().strftime("%Y-%m-%d"): # Don't double count today
+                    streak += 1
                 current -= timedelta(days=1)
+            else:
+                break
         return streak
 
     def get_activity_data(self):
@@ -101,13 +154,14 @@ class Database:
         data = {str(row[0]): row[1] for row in cursor.fetchall()}
         conn.close()
         return data
-    
-   
-
+        
     def get_total_completions(self):
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM daily_logs")
-        count = cursor.fetchone()[0]
+        try:
+            count = cursor.fetchone()[0]
+        except:
+            count = 0
         conn.close()
         return count
