@@ -12,3 +12,24 @@ __pycache__/
 build/
 dist/
 *.spec
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# Database (Very Important - keep your data private!)
+*.db
+
+# PyInstaller Build Artifacts
+build/
+dist/
+*.spec
+
+# OS annoying files
+.DS_Store
+Thumbs.db

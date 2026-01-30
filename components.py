@@ -1,6 +1,16 @@
 import customtkinter as ctk
 from PIL import Image
 import os
+import sys
+
+# --- HELPER: PATH FIX FOR .EXE ---
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
 
 class HabitCard(ctk.CTkFrame):
     def __init__(self, parent, h_id, name, time, category, color, target, progress, is_done, streak, toggle_callback, delete_callback, edit_callback):
@@ -12,7 +22,6 @@ class HabitCard(ctk.CTkFrame):
         self.toggle_callback = toggle_callback
         self.delete_callback = delete_callback
         self.edit_callback = edit_callback
-        
         self.name = name
         self.time = time
         self.category = category
@@ -20,10 +29,12 @@ class HabitCard(ctk.CTkFrame):
         
         self.columnconfigure(0, weight=1)
         
-        # Icon Loading (Safe Mode)
+        # Load Icons using resource_path
         try:
-            self.edit_icon = ctk.CTkImage(light_image=Image.open("assets/edit.png"), dark_image=Image.open("assets/edit.png"), size=(18, 18))
-            self.del_icon = ctk.CTkImage(light_image=Image.open("assets/delete.png"), dark_image=Image.open("assets/delete.png"), size=(18, 18))
+            edit_path = resource_path(os.path.join("assets", "edit.png"))
+            del_path = resource_path(os.path.join("assets", "delete.png"))
+            self.edit_icon = ctk.CTkImage(light_image=Image.open(edit_path), dark_image=Image.open(edit_path), size=(18, 18))
+            self.del_icon = ctk.CTkImage(light_image=Image.open(del_path), dark_image=Image.open(del_path), size=(18, 18))
             has_icons = True
         except:
             has_icons = False
@@ -35,9 +46,7 @@ class HabitCard(ctk.CTkFrame):
         text_color = "#2CC985" if is_done else "white"
         ctk.CTkLabel(info_frame, text=name, font=("Segoe UI", 16, "bold"), text_color=text_color).pack(side="left")
         ctk.CTkLabel(info_frame, text=category.upper(), font=("Arial", 9, "bold"), text_color=border_col).pack(side="left", padx=8)
-
-        if time:
-            ctk.CTkLabel(info_frame, text=f"⏰ {time}", font=("Arial", 12), text_color="grey").pack(side="left")
+        if time: ctk.CTkLabel(info_frame, text=f"⏰ {time}", font=("Arial", 12), text_color="grey").pack(side="left")
 
         # Weekly Progress
         if target > 0:
@@ -71,7 +80,6 @@ class HabitCard(ctk.CTkFrame):
         else:
             self.edit_btn = ctk.CTkButton(self, text="✏️", width=30, height=30, fg_color="transparent", hover_color="#333", command=self.on_edit)
             self.del_btn = ctk.CTkButton(self, text="🗑️", width=30, height=30, fg_color="transparent", hover_color="#c0392b", command=self.on_delete)
-            
         self.edit_btn.grid(row=0, column=3, padx=(0, 5))
         self.del_btn.grid(row=0, column=4, padx=(0, 15))
 
@@ -97,7 +105,7 @@ class Sidebar(ctk.CTkFrame):
         xp_bar.pack(fill="x", padx=10, pady=(0, 15))
         xp_bar.set(total_xp / next_level_xp if next_level_xp > 0 else 1)
 
-        # Nav
+        # Navigation
         self.create_nav_btn("🏠  Dashboard", "dashboard")
         self.create_nav_btn("📊  Analytics", "analytics")
         self.create_nav_btn("📈  Performance", "performance")
@@ -109,6 +117,12 @@ class Sidebar(ctk.CTkFrame):
         else:
             btn = ctk.CTkButton(self, text="🔒 Lvl 5 to Unlock", fg_color="#333", state="disabled", text_color="#555")
         btn.pack(side="bottom", padx=20, pady=20)
+        
+        # Settings
+        self.settings_btn = ctk.CTkButton(self, text="⚙️ Settings", fg_color="transparent", 
+                                          text_color="#888", hover_color="#333", height=30,
+                                          command=lambda: self.nav_callback("settings"))
+        self.settings_btn.pack(side="bottom", padx=20, pady=(0, 20))
 
     def create_nav_btn(self, text, value):
         ctk.CTkButton(self, text=text, fg_color="transparent", text_color="#cccccc", hover_color="#333", anchor="w", height=40, font=("Segoe UI", 16), command=lambda: self.nav_callback(value)).pack(fill="x", padx=10, pady=5)
