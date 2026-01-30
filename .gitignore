@@ -1,2 +1,14 @@
+# Secrets & Config
 .env
+
+# Database
+habits.db
+
+# Python compilation cache
 __pycache__/
+*.pyc
+
+# PyInstaller build folders (for when we make the .exe)
+build/
+dist/
+*.spec
